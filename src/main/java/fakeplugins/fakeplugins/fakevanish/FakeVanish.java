@@ -8,6 +8,7 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -16,18 +17,18 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 public final class FakeVanish extends JavaPlugin implements CommandExecutor, Listener {
 
-    private final Set<UUID> vanished = new HashSet<>();
-    private final Map<UUID, BossBar> bossBars = new HashMap<>();
-
-    private static final String[] STAFF_PERMS = {
+    private static final List<String> STAFF_PERMISSIONS = Arrays.asList(
             "fakevanish.helper",
             "fakevanish.sthelper",
             "fakevanish.moder",
@@ -38,102 +39,102 @@ public final class FakeVanish extends JavaPlugin implements CommandExecutor, Lis
             "fakevanish.stcurator",
             "fakevanish.glcurator",
             "fakevanish.mladm"
-    };
+    );
+
+    private final Set<UUID> vanishedPlayers = new HashSet<>();
+    private final Map<UUID, BossBar> activeBossBars = new HashMap<>();
 
     private String prefix;
-    private String msgEnabled;
-    private String msgDisabled;
-    private String msgNoPerm;
-    private String msgOnlyPlayer;
+    private String enabledMessage;
+    private String disabledMessage;
+    private String noPermissionMessage;
+    private String onlyPlayerMessage;
 
-    // Боссбар настройки
-    private boolean bossbarEnabled;
-    private String bossbarTitle;
-    private BarColor bossbarColor;
-    private BarStyle bossbarStyle;
-    private double bossbarProgress;
-    private boolean bossbarVisible;
+    private boolean bossBarEnabled;
+    private boolean bossBarVisible;
+    private String bossBarTitle;
+    private BarColor bossBarColor;
+    private BarStyle bossBarStyle;
+    private double bossBarProgress;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        loadConfig();
-
-        getCommand("va").setExecutor(this);
+        loadPluginConfig();
+        registerCommand();
         getServer().getPluginManager().registerEvents(this, this);
-
-        getLogger().info(ChatColor.GREEN + "FakeVanish включён");
+        getLogger().info("FakeVanish enabled");
     }
 
     @Override
     public void onDisable() {
-        // Убираем боссбары и показываем всех
-        for (UUID uuid : new HashSet<>(vanished)) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) {
-                showToAll(p);
-                removeBossBar(p);
+        for (UUID uniqueId : new HashSet<>(vanishedPlayers)) {
+            Player vanishedPlayer = Bukkit.getPlayer(uniqueId);
+            if (vanishedPlayer == null) {
+                continue;
+            }
+
+            revealToEveryone(vanishedPlayer);
+            removeBossBar(vanishedPlayer);
+        }
+
+        vanishedPlayers.clear();
+        activeBossBars.values().forEach(BossBar::removeAll);
+        activeBossBars.clear();
+
+        getLogger().info("FakeVanish disabled");
+    }
+
+    private void registerCommand() {
+        PluginCommand vanishCommand = getCommand("va");
+        if (vanishCommand == null) {
+            throw new IllegalStateException("Command 'va' is not defined in plugin.yml");
+        }
+
+        vanishCommand.setExecutor(this);
+    }
+
+    private void loadPluginConfig() {
+        FileConfiguration config = getConfig();
+
+        prefix = colorize(config.getString("prefix", "&b[FakeVanish] &f"));
+        enabledMessage = prefix + colorize(config.getString("messages.enabled", "Вы &aвключили&f fake vanish"));
+        disabledMessage = prefix + colorize(config.getString("messages.disabled", "Вы &cвыключили&f fake vanish"));
+        noPermissionMessage = prefix + colorize(config.getString("messages.no-permission", "&cНедостаточно прав"));
+        onlyPlayerMessage = prefix + colorize(config.getString("messages.only-player", "&cКоманда доступна только игроку"));
+
+        bossBarEnabled = config.getBoolean("bossbar.enabled", true);
+        bossBarVisible = config.getBoolean("bossbar.visible", true);
+        bossBarTitle = colorize(config.getString("bossbar.title", "&fРежим скрытия активен"));
+        bossBarColor = parseEnum(config.getString("bossbar.color"), BarColor.class, BarColor.WHITE, "bossbar.color");
+        bossBarStyle = parseEnum(config.getString("bossbar.style"), BarStyle.class, BarStyle.SOLID, "bossbar.style");
+        bossBarProgress = clamp(config.getDouble("bossbar.progress", 1.0D), 0.0D, 1.0D);
+    }
+
+    private String colorize(String value) {
+        return ChatColor.translateAlternateColorCodes('&', value == null ? "" : value);
+    }
+
+    private boolean isStaff(Player player) {
+        if (player == null) {
+            return false;
+        }
+
+        for (String permission : STAFF_PERMISSIONS) {
+            if (player.hasPermission(permission)) {
+                return true;
             }
         }
-        vanished.clear();
-        bossBars.values().forEach(BossBar::removeAll);
-        bossBars.clear();
 
-        getLogger().info(ChatColor.RED + "FakeVanish выключен");
-    }
-
-    private void loadConfig() {
-        FileConfiguration cfg = getConfig();
-
-        // Сообщения
-        prefix        = color(cfg.getString("prefix", "&b[FakeVanish] &f"));
-        msgEnabled    = prefix + color(cfg.getString("messages.enabled", "Вы &aвключили&f фейк-ваниш"));
-        msgDisabled   = prefix + color(cfg.getString("messages.disabled", "Вы &cвыключили&f фейк-ваниш"));
-        msgNoPerm     = prefix + color(cfg.getString("messages.no-permission", "&cНет прав"));
-        msgOnlyPlayer = prefix + color(cfg.getString("messages.only-player", "&cТолько для игроков"));
-
-        // Боссбар
-        bossbarEnabled  = cfg.getBoolean("bossbar.enabled", true);
-        bossbarTitle    = color(cfg.getString("bossbar.title", "&fВы в &bFakeVanish &fрежиме"));
-        bossbarVisible  = cfg.getBoolean("bossbar.visible", true);
-
-        String colorStr = cfg.getString("bossbar.color", "WHITE").toUpperCase();
-        try {
-            bossbarColor = BarColor.valueOf(colorStr);
-        } catch (IllegalArgumentException e) {
-            bossbarColor = BarColor.WHITE;
-            getLogger().warning("Неверный цвет боссбара: " + colorStr + ". Установлен WHITE.");
-        }
-
-        String styleStr = cfg.getString("bossbar.style", "SOLID").toUpperCase();
-        try {
-            bossbarStyle = BarStyle.valueOf(styleStr);
-        } catch (IllegalArgumentException e) {
-            bossbarStyle = BarStyle.SOLID;
-            getLogger().warning("Неверный стиль боссбара: " + styleStr + ". Установлен SOLID.");
-        }
-
-        bossbarProgress = cfg.getDouble("bossbar.progress", 1.0);
-        if (bossbarProgress < 0 || bossbarProgress > 1) {
-            bossbarProgress = 1.0;
-        }
-    }
-
-    private String color(String text) {
-        return ChatColor.translateAlternateColorCodes('&', text);
-    }
-
-    private boolean isStaff(Player p) {
-        if (p == null) return false;
-        for (String perm : STAFF_PERMS) {
-            if (p.hasPermission(perm)) return true;
-        }
         return false;
     }
 
-    private void hideFromNonStaff(Player target) {
+    private void applyVanishState(Player target) {
         for (Player viewer : Bukkit.getOnlinePlayers()) {
-            if (viewer.equals(target)) continue;
+            if (viewer.equals(target)) {
+                continue;
+            }
+
             if (isStaff(viewer)) {
                 viewer.showPlayer(this, target);
             } else {
@@ -142,96 +143,118 @@ public final class FakeVanish extends JavaPlugin implements CommandExecutor, Lis
         }
     }
 
-    private void showToAll(Player target) {
+    private void revealToEveryone(Player target) {
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             viewer.showPlayer(this, target);
         }
     }
 
-    private void updateVisibility(Player viewer) {
-        for (UUID uuid : vanished) {
-            Player vp = Bukkit.getPlayer(uuid);
-            if (vp != null && vp.isOnline() && !vp.equals(viewer)) {
-                if (isStaff(viewer)) {
-                    viewer.showPlayer(this, vp);
-                } else {
-                    viewer.hidePlayer(this, vp);
-                }
+    private void syncViewerVisibility(Player viewer) {
+        for (UUID uniqueId : vanishedPlayers) {
+            Player vanishedPlayer = Bukkit.getPlayer(uniqueId);
+            if (vanishedPlayer == null || vanishedPlayer.equals(viewer)) {
+                continue;
+            }
+
+            if (isStaff(viewer)) {
+                viewer.showPlayer(this, vanishedPlayer);
+            } else {
+                viewer.hidePlayer(this, vanishedPlayer);
             }
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Боссбар методы
-    // ──────────────────────────────────────────────
-
     private void showBossBar(Player player) {
-        if (!bossbarEnabled || !bossbarVisible) return;
+        if (!bossBarEnabled || !bossBarVisible) {
+            return;
+        }
 
-        BossBar bb = bossBars.computeIfAbsent(player.getUniqueId(), k -> {
-            BossBar newBar = Bukkit.createBossBar(bossbarTitle, bossbarColor, bossbarStyle);
-            newBar.setProgress(bossbarProgress);
-            return newBar;
+        BossBar bossBar = activeBossBars.computeIfAbsent(player.getUniqueId(), key -> {
+            BossBar createdBar = Bukkit.createBossBar(bossBarTitle, bossBarColor, bossBarStyle);
+            createdBar.setProgress(bossBarProgress);
+            return createdBar;
         });
 
-        bb.addPlayer(player);
+        bossBar.setVisible(true);
+        bossBar.addPlayer(player);
     }
 
     private void removeBossBar(Player player) {
-        BossBar bb = bossBars.remove(player.getUniqueId());
-        if (bb != null) {
-            bb.removePlayer(player);
-            bb.removeAll(); // на всякий
+        BossBar bossBar = activeBossBars.remove(player.getUniqueId());
+        if (bossBar == null) {
+            return;
         }
+
+        bossBar.removePlayer(player);
+        bossBar.removeAll();
+    }
+
+    private void enableFakeVanish(Player player) {
+        vanishedPlayers.add(player.getUniqueId());
+        applyVanishState(player);
+        showBossBar(player);
+        player.sendMessage(enabledMessage);
+    }
+
+    private void disableFakeVanish(Player player) {
+        vanishedPlayers.remove(player.getUniqueId());
+        revealToEveryone(player);
+        removeBossBar(player);
+        player.sendMessage(disabledMessage);
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(msgOnlyPlayer);
+            sender.sendMessage(onlyPlayerMessage);
             return true;
         }
 
         Player player = (Player) sender;
-
         if (!isStaff(player)) {
-            player.sendMessage(msgNoPerm);
+            player.sendMessage(noPermissionMessage);
             return true;
         }
 
-        UUID uuid = player.getUniqueId();
-
-        if (vanished.contains(uuid)) {
-            // Выключаем
-            vanished.remove(uuid);
-            showToAll(player);
-            removeBossBar(player);
-            player.sendMessage(msgDisabled);
+        if (vanishedPlayers.contains(player.getUniqueId())) {
+            disableFakeVanish(player);
         } else {
-            // Включаем
-            vanished.add(uuid);
-            hideFromNonStaff(player);
-            showBossBar(player);
-            player.sendMessage(msgEnabled);
+            enableFakeVanish(player);
         }
 
         return true;
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        Player p = e.getPlayer();
-        updateVisibility(p);
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        syncViewerVisibility(player);
 
-        if (vanished.contains(p.getUniqueId())) {
-            hideFromNonStaff(p);
-            showBossBar(p);
+        if (vanishedPlayers.contains(player.getUniqueId())) {
+            applyVanishState(player);
+            showBossBar(player);
         }
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent e) {
-        // Убираем боссбар при выходе (чтобы не висел в памяти)
-        removeBossBar(e.getPlayer());
+    public void onQuit(PlayerQuitEvent event) {
+        removeBossBar(event.getPlayer());
+    }
+
+    private <E extends Enum<E>> E parseEnum(String rawValue, Class<E> enumType, E fallback, String fieldName) {
+        if (rawValue == null || rawValue.trim().isEmpty()) {
+            return fallback;
+        }
+
+        try {
+            return Enum.valueOf(enumType, rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            getLogger().warning("Invalid " + fieldName + ": " + rawValue + ". Using " + fallback.name());
+            return fallback;
+        }
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

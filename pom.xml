@@ -6,7 +6,7 @@
 
     <groupId>fakeplugins.fakeplugins</groupId>
     <artifactId>FakeVanish</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.2.5</version>
     <packaging>jar</packaging>
 
     <name>FakeVanish</name>
