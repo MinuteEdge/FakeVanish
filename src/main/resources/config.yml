@@ -1,0 +1,18 @@
+prefix: "&b[FakeVanish] &f"
+
+messages:
+  enabled: "Вы &aвключили&f фейк-ваниш"
+  disabled: "Вы &cвыключили&f фейк-ваниш"
+  no-permission: "&cНет прав"
+  only-player: "&cТолько для игроков"
+
+# ──────────────────────────────────────────────
+# Настройки боссбара (появляется только в ванше)
+# ──────────────────────────────────────────────
+bossbar:
+  enabled: true                  # Включить/выключить боссбар полностью
+  title: "&fРежим скрытия"   # Текст (поддерживает & цвета)
+  color: WHITE                   # Цвет полоски: WHITE / BLUE / GREEN / PINK / PURPLE / RED / YELLOW
+  style: SOLID                   # Стиль: SOLID / SEGMENTED_6 / SEGMENTED_10 / SEGMENTED_12 / SEGMENTED_20
+  progress: 1.0                  # Прогресс от 0.0 до 1.0 (1.0 = полностью заполнен)
+  visible: true                  # Видим ли вообще (можно отключить)

@@ -1,0 +1,43 @@
+name: FakeVanish
+main: fakeplugins.fakeplugins.fakevanish.FakeVanish
+version: 1.2
+api-version: 1.16
+author: MinuteEdge
+
+commands:
+  va:
+    description: Переключить ваниш
+    usage: /va
+    aliases: [fv, fakevanish]
+
+permissions:
+  fakevanish.helper:
+    description: Helper — может ваншить и видеть ванишенных
+    default: false
+  fakevanish.sthelper:
+    description: Старший Helper
+    default: false
+  fakevanish.moder:
+    description: Moderator
+    default: false
+  fakevanish.stmoder:
+    description: Старший Moderator
+    default: false
+  fakevanish.glmoder:
+    description: Главный Moderator
+    default: false
+  fakevanish.zam:
+    description: Заместитель
+    default: false
+  fakevanish.curator:
+    description: Curator
+    default: false
+  fakevanish.stcurator:
+    description: Старший Curator
+    default: false
+  fakevanish.glcurator:
+    description: Главный Curator
+    default: false
+  fakevanish.mladm:
+    description: Младший администратор
+    default: false
